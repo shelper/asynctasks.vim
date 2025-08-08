@@ -22,6 +22,7 @@ import pprint
 import tempfile
 import codecs
 import shutil
+import json
 
 
 #----------------------------------------------------------------------
@@ -843,6 +844,15 @@ class TaskManager (object):
         self.config = configure(path)
         self.code = 0
         self.verbose = False
+        self.remember = int(os.environ.get('ASYNCTASKS_REMEMBER', '0'))
+        self.history_limit = int(os.environ.get('ASYNCTASKS_HISTORY_LIMIT', '50'))
+        home = os.path.join(os.path.expanduser('~'), '.asynctasks')
+        self.history_file = os.environ.get('ASYNCTASKS_HISTORY_FILE',
+            os.path.join(home, 'history.json'))
+        self.history = {}
+        self._current_task = 'task'
+        self._input_remember = 0
+        self._load_history()
 
     def option_select (self, task, name):
         command = task.get(name, '')
@@ -930,27 +940,47 @@ class TaskManager (object):
         name, sep, tail = varname.strip().partition(':')
         name = name.strip()
         tail = tail.strip()
+        remember = self._input_remember
+        if sep and tail == '':
+            remember = 1
         if '-' in self.config.shadow:
             shadow = self.config.shadow['-']
             if name in shadow:
                 return shadow[name]
-        if ',' not in tail:
+        rkey = '%s:%s'%(self._current_task, name)
+        history = self._history_get(rkey)
+        text = tail
+        if remember and text == '':
+            text = history[0] if len(history) > 0 else ''
+        if ',' not in text:
             prompt = 'Input argument (%s): '%name
-            # for linux like system, using readline for editable default value
-            if UNIX and HAS_READLINE: 
-                text = ''
+            default = text
+            if UNIX and HAS_READLINE:
                 try:
-                    readline.set_startup_hook(lambda: readline.insert_text(tail))
+                    try:
+                        readline.clear_history()
+                    except AttributeError:
+                        while readline.get_current_history_length() > 0:
+                            readline.remove_history_item(0)
+                    for val in reversed(history):
+                        readline.add_history(val)
+                    if default:
+                        readline.set_startup_hook(lambda: readline.insert_text(default))
                     text = self.raw_input(prompt)
                 finally:
                     readline.set_startup_hook()
+                    try:
+                        readline.clear_history()
+                    except AttributeError:
+                        while readline.get_current_history_length() > 0:
+                            readline.remove_history_item(0)
             else:
                 text = self.raw_input(prompt)
                 if not text:
-                    text = tail.strip()
+                    text = default
         else:
             select = []
-            for part in tail.split(','):
+            for part in text.split(','):
                 part = part.replace('&', '').strip()
                 if part:
                     select.append(part)
@@ -973,13 +1003,17 @@ class TaskManager (object):
         text = text.strip()
         if not text:
             return None
+        if remember:
+            self._history_add(rkey, text)
         return text
 
-    def command_input (self, command):
+    def command_input (self, command, remember):
         if '$(VIM_CWORD)' in command:
             command = command.replace('$(VIM_CWORD)', '$(?CWORD)')
+        self._input_remember = remember
         command = self.config.mark_replace(command, '$(-', ')', self._handle_input)
         command = self.config.mark_replace(command, '$(?', ')', self._handle_input)
+        self._input_remember = 0
         return command
 
     def task_option (self, task):
@@ -1043,7 +1077,18 @@ class TaskManager (object):
         hr = self.command_check(command, task)
         if hr != 0:
             return -4
-        command = self.command_input(command)
+        remember = self.remember
+        if 'remember' in task:
+            try:
+                remember = int(task['remember'])
+            except Exception:
+                if str(task['remember']).strip() in ('yes', 'true', 'on'):
+                    remember = 1
+                else:
+                    remember = 0
+        self._current_task = taskname
+        command = self.command_input(command, remember)
+        self._current_task = 'task'
         command = command.strip()
         if not command:
             return 0
@@ -1058,6 +1103,41 @@ class TaskManager (object):
         if opts.cwd:
             os.chdir(save)
         return 0
+
+    def _load_history (self):
+        try:
+            with open(self.history_file, 'r', encoding='utf-8') as f:
+                obj = json.load(f)
+                if isinstance(obj, dict):
+                    self.history.update(obj)
+        except Exception:
+            pass
+
+    def _save_history (self):
+        try:
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump(self.history, f)
+        except Exception:
+            pass
+
+    def _history_get (self, key):
+        hist = self.history.get(key, [])
+        if isinstance(hist, str):
+            hist = [hist] if hist else []
+        return hist
+
+    def _history_add (self, key, value):
+        if not value:
+            return
+        hist = self._history_get(key)
+        if value in hist:
+            hist.remove(value)
+        hist.insert(0, value)
+        if len(hist) > self.history_limit:
+            hist = hist[:self.history_limit]
+        self.history[key] = hist
+        self._save_history()
 
     def task_list (self, all = False, raw = False):
         self.config.load_tasks()

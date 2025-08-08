@@ -4,8 +4,8 @@
 "
 " Maintainer: skywind3000 (at) gmail.com, 2020-2021
 "
-" Last Modified: 2024/06/18 16:30
-" Verision: 1.9.19
+" Last Modified: 2024/07/13 00:00
+" Verision: 1.9.20
 "
 " For more information, please visit:
 " https://github.com/skywind3000/asynctasks.vim
@@ -101,6 +101,29 @@ let g:asynctasks_remember = get(g:, 'asynctasks_remember', 0)
 
 " last user input, key is 'taskname:variable'
 let g:asynctasks_history = get(g:, 'asynctasks_history', {})
+
+" how many history items to keep for each argument
+let g:asynctasks_history_limit = get(g:, 'asynctasks_history_limit', 50)
+
+" where to store argument history
+if exists('*stdpath')
+        let s:history_home = stdpath('data') . '/asynctasks'
+else
+        let s:history_home = expand('~/.asynctasks')
+endif
+let g:asynctasks_history_file = get(g:, 'asynctasks_history_file',
+        \ s:history_home . '/history.json')
+
+" load history from json file if possible
+if filereadable(g:asynctasks_history_file)
+        try
+                let s:hist = json_decode(join(readfile(g:asynctasks_history_file), "\n"))
+                if type(s:hist) == type({})
+                        call extend(g:asynctasks_history, s:hist)
+                endif
+        catch
+        endtry
+endif
 
 " control how to open a split window in AsyncTaskEdit
 let g:asynctasks_edit_split = get(g:, 'asynctasks_edit_split', '')
@@ -1107,11 +1130,50 @@ endfunc
 
 
 "----------------------------------------------------------------------
+" history helpers
+"----------------------------------------------------------------------
+function! s:history_get(key)
+        let hist = get(g:asynctasks_history, a:key, [])
+        if type(hist) == type('')
+                let hist = (hist == '')? [] : [hist]
+        endif
+        return hist
+endfunc
+
+function! s:history_save()
+        try
+                call mkdir(fnamemodify(g:asynctasks_history_file, ':h'), 'p')
+                call writefile([json_encode(g:asynctasks_history)],
+                        \ g:asynctasks_history_file)
+        catch
+        endtry
+endfunc
+
+function! s:history_add(key, value)
+        if a:value == ''
+                return
+        endif
+        let hist = s:history_get(a:key)
+        let idx = index(hist, a:value)
+        if idx >= 0
+                call remove(hist, idx)
+        endif
+        call insert(hist, a:value)
+        let limit = g:asynctasks_history_limit
+        if len(hist) > limit
+                call remove(hist, limit, -1)
+        endif
+        let g:asynctasks_history[a:key] = hist
+        call s:history_save()
+endfunc
+
+
+"----------------------------------------------------------------------
 " handle input
 "----------------------------------------------------------------------
 function! s:handle_input(text)
-	let name = s:strip(a:text)
-	let remember = get(s:, 'handle_remember', 0)
+        let name = s:strip(a:text)
+        let remember = get(s:, 'handle_remember', 0)
 	let taskname = get(s:, 'handle_taskname', 'task')
 	let text = ''
 	let kiss = stridx(name, ':')
@@ -1122,42 +1184,60 @@ function! s:handle_input(text)
 			let remember = 1
 		endif
 	endif
-	let rkey = taskname . ':' . name
-	let ikey = rkey . ':<pos>'
-	let select = []
-	let lastid = -1
-	if has_key(s:private, 'shadow')
-		let shadow = get(s:private.shadow, '-', {})
-		if has_key(shadow, name)
-			return shadow[name]
-		endif
-	endif
-	if remember && text == ''
-		let text = get(g:asynctasks_history, rkey, '')
-		" echom 'remember: <' . text . '>'
-	elseif stridx(text, ',') >= 0
-		for part in split(text, ',')
-			let part = s:strip(part)
-			if part != ''
-				let select += [part]
+        let rkey = taskname . ':' . name
+        let ikey = rkey . ':<pos>'
+        let select = []
+        let lastid = -1
+        let history = s:history_get(rkey)
+        if has_key(s:private, 'shadow')
+                let shadow = get(s:private.shadow, '-', {})
+                if has_key(shadow, name)
+                        return shadow[name]
+                endif
+        endif
+        if remember && text == ''
+                let text = get(history, 0, '')
+        elseif stridx(text, ',') >= 0
+                for part in split(text, ',')
+                        let part = s:strip(part)
+                        if part != ''
+                                let select += [part]
 			endif
 		endfor
 		let lastid = str2nr(get(g:asynctasks_history, ikey, ''))
-	endif
-	if len(select) == 0
-		echohl Type
-		let t = s:api_input('Input argument (' . name . '): ', text)
-		echohl None
-		let g:asynctasks_history[rkey] = t
-	else
-		let items = join(select, "\n")
-		let t = ''
-		let choice = s:api_confirm('Choice argument (' . name . ')', items, lastid)
-		if choice > 0
-			let g:asynctasks_history[ikey] = choice
-			let t = s:replace(select[choice - 1], '&', '')
-		endif
-	endif
+        endif
+        if len(select) == 0
+                let _save = []
+                for i in range(1, histnr('input'))
+                        call add(_save, histget('input', i))
+                endfor
+                call histdel('input')
+                for val in reverse(copy(history))
+                        call histadd('input', val)
+                endfor
+                echohl Type
+                let t = s:api_input('Input argument (' . name . '): ', text)
+                echohl None
+                call histdel('input')
+                for val in _save
+                        call histadd('input', val)
+                endfor
+                call histadd('input', t)
+                if remember
+                        call s:history_add(rkey, t)
+                endif
+        else
+                let items = join(select, "\n")
+                let t = ''
+                let choice = s:api_confirm('Choice argument (' . name . ')', items, lastid)
+                if choice > 0
+                        let g:asynctasks_history[ikey] = choice
+                        let t = s:replace(select[choice - 1], '&', '')
+                        if remember
+                                call s:history_add(rkey, t)
+                        endif
+                endif
+        endif
 	if t == ''
 		return 0
 	endif
