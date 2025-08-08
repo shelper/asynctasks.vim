@@ -347,7 +347,10 @@ There are two variable you need to provide, input them one by one, press `ESC` t
 
 As you see, `$(?your name)` has been substituted with the value you just provided.
 
-_Hint: use `$(?prompt:default)` to provide a default value, and `$(?prompt:)` to remember input history._
+_Hint: use `$(?prompt:default)` to provide a default value, and `$(?prompt:)`
+to remember input history. Press `<Up>`/`<Down>` to cycle previous inputs.
+History is stored in `g:asynctasks_history_file` and keeps up to
+`g:asynctasks_history_limit` items (default 50)._ 
 
 Real example used by myself:
 
@@ -528,6 +531,16 @@ Command:
     :AsyncTaskEdit cargo
 
 Will create a new file with the template "cargo", if the file doesn't exist.
+
+##### The `g:asynctasks_history_limit` option
+
+How many history items are kept for each task argument. Default is `50`.
+
+##### The `g:asynctasks_history_file` option
+
+Where argument history is stored. Defaults to
+`stdpath('data')/asynctasks/history.json` or `~/.asynctasks/history.json` when
+`stdpath()` is unavailable.
 
 ## Task Examples
 

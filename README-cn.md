@@ -441,7 +441,11 @@ output=terminal
 
 当你在命令行里提供这些值了，AsyncTask 就不会再问你要输入了。
 
-_提示：使用 `$(-prompt:default)` 可以提供一个默认值，同时 `$(-prompt:)` 会记住上次的输入。使用 `$(-gender:&male,&female)` 来给用户提供备选。_
+_提示：使用 `$(-prompt:default)` 可以提供一个默认值，同时 `$(-prompt:)`
+会记住上次的输入。按 `<Up>`/`<Down>` 可在历史记录中切换，历史保存在
+`g:asynctasks_history_file` 中，默认最多保留
+`g:asynctasks_history_limit`（50）条。使用 `$(-gender:&male,&female)` 来给用户
+提供备选。_
 
 真实案例（我自己用的）：
 
@@ -692,6 +696,15 @@ let g:asynctasks_extra_config = [
 ##### The `g:asynctasks_filetype` option
 
 任务配置文件的 filetype，默认值是 "taskini".
+
+##### The `g:asynctasks_history_limit` option
+
+每个参数保存多少条历史记录，默认 `50`。
+
+##### The `g:asynctasks_history_file` option
+
+历史记录保存的位置，默认为 `stdpath('data')/asynctasks/history.json`，
+若 `stdpath()` 不可用则使用 `~/.asynctasks/history.json`。
 
 ## 使用案例
 

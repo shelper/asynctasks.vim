@@ -43,6 +43,8 @@ The generic way to handle building/running/testing/deploying tasks by imitating 
         - [The `g:asynctasks_confirm` option](#the-gasynctasks_confirm-option)
         - [The `g:asynctasks_filetype` option](#the-gasynctasks_filetype-option)
         - [The `g:asynctasks_template` option](#the-gasynctasks_template-option)
+        - [The `g:asynctasks_history_limit` option](#the-gasynctasks_history_limit-option)
+        - [The `g:asynctasks_history_file` option](#the-gasynctasks_history_file-option)
   - [Specification](#specification)
   - [Command Line Tool](#command-line-tool)
   - [Frequently Asked Questions](#frequently-asked-questions)
@@ -465,7 +467,11 @@ Input value can also be provided as command arguments of `AsyncTask {name}`:
 
 If the value is present in the arguments, AsyncTask will not ask you repeatly.
 
-_Hint: use `$(-prompt:default)` to provide a default value, `$(-prompt:)` to remember input history. and `$(-gender:&male,&female)` to provide multiple choices._
+_Hint: use `$(-prompt:default)` to provide a default value, `$(-prompt:)` to
+remember input history. Press `<Up>`/`<Down>` to cycle previous inputs. History
+is stored in `g:asynctasks_history_file` with at most
+`g:asynctasks_history_limit` entries (default 50). `$(-gender:&male,&female)`
+provides multiple choices._
 
 Real example used by myself:
 
@@ -785,6 +791,16 @@ Command:
     :AsyncTaskEdit cargo
 
 Will create a new file with the template "cargo", if the file doesn't exist.
+
+##### The `g:asynctasks_history_limit` option
+
+How many history items are kept for each task argument. Default is `50`.
+
+##### The `g:asynctasks_history_file` option
+
+Where argument history is stored. Defaults to
+`stdpath('data')/asynctasks/history.json` or `~/.asynctasks/history.json` when
+`stdpath()` is unavailable.
 
 ## Specification
 

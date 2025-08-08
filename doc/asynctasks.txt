@@ -33,7 +33,9 @@ Contents ~
     10. The |g:asynctasks_term_listed| option
     11. The |g:asynctasks_confirm| option
     12. The |g:asynctasks_template| option
- 5. Task Examples                                    |asynctasks-task-examples|
+    13. The |g:asynctasks_history_limit| option
+    14. The |g:asynctasks_history_file| option
+5. Task Examples                                    |asynctasks-task-examples|
  6. Command Line Tool                            |asynctasks-command-line-tool|
  7. Frequently Asked Questions          |asynctasks-frequently-asked-questions|
  8. Credit                                                  |asynctasks-credit|
@@ -479,7 +481,9 @@ As you see, '$(?your name)' has been substituted with the value you just
 provided.
 
 _Hint: use '$(?prompt:default)' to provide a default value, and '$(?prompt:)'
-to remember input history._
+to remember input history. Use <Up>/<Down> to cycle previous inputs. History is
+kept in |g:asynctasks_history_file| with at most
+|g:asynctasks_history_limit| entries (default 50)._ 
 
 Real example used by myself:
 >
@@ -674,6 +678,17 @@ Command:
   :AsyncTaskEdit cargo
 <
 Will create a new file with the template "cargo", if the file doesn't exist.
+
+-------------------------------------------------------------------------------
+The *g:asynctasks_history_limit* option
+
+How many history items are kept for each task argument. Default is 50.
+
+-------------------------------------------------------------------------------
+The *g:asynctasks_history_file* option
+
+Where argument history is saved. Defaults to
+stdpath('data')/asynctasks/history.json or ~/.asynctasks/history.json.
 
 ===============================================================================
                                                      *asynctasks-task-examples*
